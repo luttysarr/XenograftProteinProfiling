@@ -319,4 +319,105 @@ AnalyzeData <- function() {
         PlotNetShifts(cntl = "thermal", ch = "U", step = 3)
 }
 
+MergeShifts <- function (ch) {
+  
+  #get working directory to reset at end
+  setwd("./plots")
+  
+  #Read Steps
+  conc1 <- 50
+  conc2 <- 100
+  conc3 <- 300
+  conc4 <- 500
+  conc5 <- 1000
+  conc6 <- 2000
+  shift1 <- read.csv(paste(name,"_netShifts_ch",ch,"conc_",conc1,".csv", sep=""), header = TRUE)
+  shift2 <- read.csv(paste(name,"_netShifts_ch",ch,"conc_",conc2,".csv", sep=""), header = TRUE)
+  shift3 <- read.csv(paste(name,"_netShifts_ch",ch,"conc_",conc3,".csv", sep=""), header = TRUE)
+  shift4 <- read.csv(paste(name,"_netShifts_ch",ch,"conc_",conc4,".csv", sep=""), header = TRUE)
+  shift5 <- read.csv(paste(name,"_netShifts_ch",ch,"conc_",conc5,".csv", sep=""), header = TRUE)
+  shift6 <- read.csv(paste(name,"_netShifts_ch",ch,"conc_",conc6,".csv", sep=""), header = TRUE)
+  
+  #Convert to dataframe
+  shift1_df <- data.frame(shift1)
+  shift2_df <- data.frame(shift2)
+  shift3_df <- data.frame(shift3)
+  shift4_df <- data.frame(shift4)
+  shift5_df <- data.frame(shift5)
+  shift6_df <- data.frame(shift6)
+  
+  
+  #Merge
+  allShifts_df <- rbind(shift1_df,shift2_df,shift3_df,shift4_df, shift5_df, shift6_df)
+  
+  
+  #Write .csv
+  write.csv(allShifts_df, file="MergedShifts.csv")
+}
+
+PlotAllShifts <-function() {
+  
+  # loads relevant libraries
+  library(ggplot2)
+  library(readr)
+  library(RColorBrewer)
+  
+  #Read Data
+  dat_shifts <- read.csv("MergedShifts.csv", header=TRUE)
+
+  #set colors for plot
+  colorCount <- length(unique(dat_shifts$Target))
+  getPalette <- colorRampPalette(brewer.pal(8, "Paired"))(colorCount)
+  
+  #configure plot and legend
+  Bmax_start <- 500
+  Kd_start <- 500
+  plots <- ggplot(dat_shifts, aes(x = Conc, y = Net.Shift, colour = factor(Target))) + 
+    ylab(expression(paste("Relative Shift (",Delta,"pm)"))) +
+    scale_colour_manual(values = getPalette, name = 'Target') +
+    theme_bw() + theme(panel.grid = element_blank(), 
+                       axis.title.x=element_blank()) + 
+    theme(legend.key = element_rect(colour = 'white',
+                                    fill = 'white'), legend.key.size = unit(0.4, "cm"))+
+    stat_summary(fun.y = mean,
+                 fun.ymin = function(x) mean(x) - sd(x), 
+                 fun.ymax = function(x) mean(x) + sd(x), 
+                 geom = "pointrange")+
+    facet_wrap(~Target, ncol=3)+
+    xlab("Concentration (nM)") +
+    geom_smooth(method = "nls",
+                se = FALSE,
+                size = 1,
+                method.args = list(formula = y ~ Bmax * x / (Kd + x), 
+                                   start = list(Bmax =Bmax_start, Kd = Kd_start)))
+  print(plots)
+  
+  #save
+  ggsave(file = "NetShifts.png",plots, width = 10, height = 6)
+  
+}
+
+
+GetValues <- function(target){
+  
+  # loads relevant libraries
+  library(dplyr)
+  library(tidyr)
+  
+  #Read Data
+  dat_shifts <- read.csv("MergedSteps.csv", header=TRUE)
+  dat_shifts2 <-  filter(dat_shifts, Target == target)
+  x <- dat_shifts2$Conc
+  y <- dat_shifts2$Net.Shift
+  
+  #Fit Eqn
+  Bmax_start <- 500
+  Kd_start <- 500
+  fit <- nls(formula = y ~ Bmax * x / (Kd + x), 
+    start = list(Bmax =Bmax_start, Kd = Kd_start))
+
+  #Output
+  fit
+  
+}
 
